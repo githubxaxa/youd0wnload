@@ -5,17 +5,19 @@ from threading import Thread
 from flask import Flask, render_template, request, jsonify, send_file, after_this_request
 from flask_socketio import SocketIO, join_room
 import yt_dlp
+import imageio_ffmpeg
 
 app = Flask(__name__)
-# Socket.IO (threading backend works well on Windows)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# Temp download folder
 DOWNLOAD_DIR = os.path.join(os.getcwd(), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # token -> {"path": final_file_path, "name": download_name}
 DOWNLOAD_MAP = {}
+
+# Resolve an ffmpeg binary path (works on Render)
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 # Strip ANSI color codes from yt-dlp strings (so they render cleanly in browser)
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
@@ -81,14 +83,37 @@ def get_info():
     url = (data.get("url") or "").strip()
     if not url:
         return jsonify({"error": "No URL provided"}), 400
+
+    # Safer defaults for PaaS networks (IPv4 + web client + UA; no colors)
+    base_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "color": "never",
+        "force_ipv4": True,
+        "ffmpeg_location": FFMPEG_PATH,  # harmless during info fetch
+        "extractor_args": {
+            # Force the standard web player client to avoid GVS/PO token quirks
+            "youtube": {"player_client": ["web"]}
+        },
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0 Safari/537.36"
+            )
+        },
+    }
+
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "color": "never"}) as ydl:
+        with yt_dlp.YoutubeDL(base_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             thumb = pick_thumbnail(info)
             print(f"[DEBUG] Title: {info.get('title')!r} | Thumb: {thumb!r}")
             return jsonify({"title": info.get("title"), "thumbnail": thumb})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Print full error in logs to help diagnose
+        print(f"[ERROR] get_info failed: {e}")
+        return jsonify({"error": "Could not fetch video info"}), 500
 
 
 @socketio.on("subscribe")
@@ -118,7 +143,6 @@ def make_progress_hook(progress_id: str):
             elif st == "finished":
                 socketio.emit("progress", {"status": "finished"}, to=progress_id)
         except Exception:
-            # Don't break the download if emit fails
             pass
     return hook
 
@@ -137,7 +161,19 @@ def run_download(url, option, progress_id):
             "quiet": False,
             "verbose": True,
             "overwrites": True,
-            "color": "never",  # disable ANSI colors
+            "color": "never",
+            "force_ipv4": True,
+            "ffmpeg_location": FFMPEG_PATH,
+            "extractor_args": {
+                "youtube": {"player_client": ["web"]}
+            },
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0 Safari/537.36"
+                )
+            },
         }
 
         if option == "1":
@@ -195,6 +231,7 @@ def run_download(url, option, progress_id):
         }, to=progress_id)
 
     except Exception as e:
+        print(f"[ERROR] run_download failed: {e}")
         socketio.emit("progress", {"status": "error", "message": str(e)}, to=progress_id)
 
 
@@ -233,5 +270,4 @@ def download_file(token):
 
 
 if __name__ == "__main__":
-    # Disable reloader so our in-memory token map isn't duplicated by a second process
     socketio.run(app, debug=True, use_reloader=False)
