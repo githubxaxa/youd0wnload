@@ -1,0 +1,136 @@
+:root{
+  --bg1:#0f2027; --bg2:#203a43; --bg3:#2c5364;
+  --neon:#00ffe0; --neon2:#0077ff; --ok:#00ff7f;
+  --text:#ffffff; --panel:#0f161a;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0; min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-start; gap:24px; padding:32px 16px;
+  background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+  color:var(--text); font-family:'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.app-title{
+  margin:0; font-size:clamp(1.6rem, 3vw, 2.2rem); text-align:center;
+  text-shadow:0 0 10px var(--neon), 0 0 20px var(--neon);
+}
+
+.card{
+  width:min(560px, 96vw); margin-inline:auto; background:rgba(0,0,0,0.78);
+  border-radius:16px; padding:22px; box-shadow:0 0 24px var(--neon);
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+}
+
+.thumb{
+  width:100%; border-radius:12px; transition:opacity .45s ease;
+}
+
+.video-title{
+  width:100%; text-align:center; font-weight:700; font-size:1.05rem;
+}
+
+form{
+  width:100%; display:flex; flex-direction:column; align-items:center; gap:12px;
+}
+
+.field, .input-wrap{
+  width:100%; max-width:520px;
+}
+
+/* Ensure consistent input height & perfectly centered right-side icons */
+.input-wrap{ position:relative; }
+#urlInput{
+  width:100%;
+  height:48px;                 /* fixed height for stable centering */
+  line-height:48px;            /* vertical rhythm */
+  padding:0 44px 0 12px;       /* room on the right for icons */
+  border-radius:10px; border:none; outline:none;
+  font-size:1rem; background:var(--panel); color:var(--text);
+  box-shadow: inset 0 0 0 1px rgba(0,255,224,0.45);
+}
+
+.loader, .btn-spinner{
+  border-radius:50%; border-top:3px solid transparent; animation:spin 1s linear infinite;
+}
+
+/* Right-side icons centered over the input */
+.loader{
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  width:18px; height:18px; border:3px solid var(--neon);
+}
+.checkmark{
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  color:var(--ok); font-weight:700; font-size:1.1rem;
+}
+
+@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+select{
+  width:100%; padding:12px; border-radius:10px; border:none; outline:none;
+  font-size:1rem; background:var(--panel); color:var(--text);
+  box-shadow: inset 0 0 0 1px rgba(0,255,224,0.45);
+}
+
+.button-wrap{
+  width:100%; max-width:520px; display:flex; flex-direction:column;
+  align-items:center; gap:8px; margin-top:6px;
+}
+
+.arrow{
+  min-height:1.4rem; font-size:1rem; color:var(--neon);
+  opacity:0; transition:opacity .45s ease, transform .45s ease;
+  text-align:center; animation:bounce 1.4s infinite;
+}
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+#downloadBtn{
+  width:100%; max-width:320px; padding:12px; border:none; border-radius:12px;
+  background:linear-gradient(45deg, var(--neon), var(--neon2)); color:#000; font-weight:800; font-size:1rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:transform .2s ease, box-shadow .2s ease, opacity .2s ease, background .2s ease;
+}
+#downloadBtn:hover:enabled{ transform:scale(1.04); box-shadow:0 0 16px var(--neon), 0 0 24px var(--neon2); }
+#downloadBtn:disabled{ background:#3a3f46; color:#d1d5db; cursor:not-allowed; }
+.btn-spinner{ display:none; width:16px; height:16px; border:3px solid #d1d5db; border-top-color:transparent; }
+.btn-text{ display:inline-block; }
+
+.progress-container{
+  width:100%; max-width:520px; position:relative; height:20px; background:#101417;
+  border-radius:10px; overflow:hidden; margin-top:6px; display:flex; align-items:center;
+}
+.progress-bar{
+  position:relative; height:100%; width:0%;
+  background:linear-gradient(90deg, var(--neon), var(--neon2)); transition:width .2s linear;
+}
+.progress-text{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:600;
+  font-size:0.8rem;   /* smaller, readable */
+  line-height:1;
+  color:#fff;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  overflow:hidden;
+}
+
+.done-check{
+  margin-top:6px; color:var(--ok); font-weight:800; font-size:1.05rem;
+}
+
+.ready-link{
+  margin-top:8px; display:inline-block; text-decoration:none; font-weight:800; color:#000;
+  background:linear-gradient(45deg, var(--neon), var(--neon2)); padding:10px 16px; border-radius:10px;
+}
+.ready-link:hover{ filter:brightness(1.08); }
+
+@media (max-width: 480px){
+  .card{ padding:18px; }
+  #downloadBtn{ max-width:100%; }
+}

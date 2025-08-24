@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🚀 YouTube Downloader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1 class="app-title">🚀 YouTube Downloader</h1>
+
+  <div class="card">
+    <!-- Thumbnail + title -->
+    <img id="thumbnail" class="thumb" style="display:none; opacity:0;" alt="Video thumbnail" />
+    <div id="videoTitle" class="video-title" style="display:none;"></div>
+
+    <!-- Form -->
+    <form id="downloadForm" action="/start_download" method="POST" autocomplete="off">
+      <div class="input-wrap">
+        <input type="text" id="urlInput" name="url" placeholder="Paste YouTube URL…" required />
+        <span id="loader" class="loader" style="display:none;"></span>
+        <span id="checkMark" class="checkmark" style="display:none;">✔</span>
+      </div>
+
+      <div class="field">
+        <select id="option" name="option">
+          <option value="1">🎬 HQ Video (MP4)</option>
+          <option value="2">🎵 Audio Only (MP3)</option>
+        </select>
+      </div>
+
+      <input type="hidden" id="progressId" name="progress_id">
+
+      <div class="button-wrap">
+        <div id="arrow" class="arrow" style="opacity:0;">⬇</div>
+        <button id="downloadBtn" type="submit" disabled>
+          <span class="btn-spinner"></span>
+          <span class="btn-text">Loading…</span>
+        </button>
+      </div>
+
+      <div id="progressContainer" class="progress-container" style="display:none;">
+        <div id="progressBar" class="progress-bar"></div>
+        <div id="progressText" class="progress-text">0%</div>
+      </div>
+
+      <div id="doneCheck" class="done-check" style="display:none;">✔ Done!</div>
+      <a id="readyLink" href="#" style="display:none;" class="ready-link">⬇ Download File</a>
+    </form>
+  </div>
+
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <script>
+    // --- Element refs ---
+    const socket = io();
+    const form = document.getElementById('downloadForm');
+    const urlInput = document.getElementById('urlInput');
+    const loader = document.getElementById('loader');
+    const checkMark = document.getElementById('checkMark');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const btnText = downloadBtn.querySelector('.btn-text');
+    const btnSpin = downloadBtn.querySelector('.btn-spinner');
+    const arrow = document.getElementById('arrow');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const doneCheck = document.getElementById('doneCheck');
+    const readyLink = document.getElementById('readyLink');
+    const progressIdInput = document.getElementById('progressId');
+    const videoTitleEl = document.getElementById('videoTitle');
+    const thumbEl = document.getElementById('thumbnail');
+
+    let debounceTimer;
+
+    // Hide thumbnail if its URL fails to load
+    thumbEl.onerror = () => {
+      thumbEl.style.display = 'none';
+      thumbEl.removeAttribute('src');
+      thumbEl.style.opacity = 0;
+    };
+
+    function setButtonLoading(isLoading) {
+      if (isLoading) {
+        downloadBtn.disabled = true;
+        btnSpin.style.display = 'inline-block';
+        btnText.textContent = 'Loading…';
+      } else {
+        downloadBtn.disabled = false;
+        btnSpin.style.display = 'none';
+        btnText.textContent = 'Download';
+      }
+    }
+
+    function fullResetUI() {
+      videoTitleEl.style.display = 'none';
+      videoTitleEl.textContent = '';
+      thumbEl.style.display = 'none';
+      thumbEl.style.opacity = 0;
+      thumbEl.removeAttribute('src');
+
+      loader.style.display = 'none';
+      checkMark.style.display = 'none';
+
+      // Arrow is for guidance before/while downloading; hide at the end so we keep only one "Done".
+      arrow.style.opacity = 0;
+      arrow.textContent = '⬇';
+
+      setButtonLoading(true);
+
+      progressContainer.style.display = 'none';
+      progressBar.style.width = '0%';
+      progressText.textContent = '0%';
+
+      doneCheck.style.display = 'none';
+      readyLink.style.display = 'none';
+      readyLink.removeAttribute('href');
+      readyLink.removeAttribute('download');
+    }
+
+    function debounce(fn, ms=450){
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fn, ms);
+    }
+
+    urlInput.addEventListener('input', () => {
+      fullResetUI();
+      const val = urlInput.value.trim();
+      if (!val) return;
+      loader.style.display = 'inline-block';
+      debounce(fetchInfo, 450);
+    });
+
+    async function fetchInfo() {
+      const url = urlInput.value.trim();
+      if (!url) return;
+      try {
+        const res = await fetch('/get_info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        loader.style.display = 'none';
+
+        if (data && data.title) {
+          videoTitleEl.textContent = data.title;
+          videoTitleEl.style.display = 'block';
+
+          if (data.thumbnail) {
+            thumbEl.src = data.thumbnail;
+            thumbEl.style.display = 'block';
+            requestAnimationFrame(() => { thumbEl.style.opacity = 1; });
+          }
+
+          checkMark.style.display = 'inline-block';
+          setButtonLoading(false);
+          setTimeout(() => { arrow.style.opacity = 1; }, 160);
+        } else {
+          videoTitleEl.textContent = '⚠ Could not fetch video info.';
+          videoTitleEl.style.display = 'block';
+        }
+      } catch (e) {
+        loader.style.display = 'none';
+        videoTitleEl.textContent = '⚠ Error fetching info.';
+        videoTitleEl.style.display = 'block';
+      }
+    }
+
+    function newProgressId(){
+      const arr = new Uint32Array(4);
+      crypto.getRandomValues(arr);
+      return [...arr].map(x => x.toString(16)).join('');
+    }
+
+    // Live progress from server
+    socket.on('progress', (data) => {
+      if (!data) return;
+
+      if (data.status === 'downloading') {
+        let p = 0;
+        if (typeof data.percent === 'string') {
+          const m = data.percent.match(/([\d.]+)/);
+          if (m) p = Math.max(0, Math.min(100, parseFloat(m[1])));
+        }
+
+        progressContainer.style.display = 'flex';
+        let details = `${Math.floor(p)}%`;
+        if (data.downloaded && data.total) {
+          const toMB = x => (x/1048576).toFixed(1) + 'MB';
+          details += ` • ${toMB(data.downloaded)} / ${toMB(data.total)}`;
+        }
+        if (data.speed) details += ` • ${data.speed}`;
+        if (data.eta) details += ` • ETA ${data.eta}`;
+
+        progressBar.style.width = p + '%';
+        progressText.textContent = details;
+
+        arrow.textContent = '⏳ Downloading… please wait';
+        arrow.style.opacity = 1;
+      }
+      else if (data.status === 'finished') {
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+      }
+      else if (data.status === 'ready') {
+        // Keep just ONE Done (green check below)
+        doneCheck.style.display = 'block';
+        // Hide the arrow to avoid duplicate "Done"
+        arrow.textContent = '⬇';
+        arrow.style.opacity = 0;
+
+        btnText.textContent = 'Download';
+        btnSpin.style.display = 'none';
+
+        // Provide Save As link
+        readyLink.href = data.url;
+        readyLink.download = data.filename;
+        readyLink.style.display = 'inline-block';
+      }
+      else if (data.status === 'error') {
+        alert('⚠ ' + (data.message || 'Download failed.'));
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const progressId = newProgressId();
+      progressIdInput.value = progressId;
+      await new Promise((resolve) => socket.emit('subscribe', { progress_id: progressId }, resolve));
+
+      btnText.textContent = 'Downloading…';
+      btnSpin.style.display = 'inline-block';
+      fetch('/start_download', { method: 'POST', body: new FormData(form) });
+    });
+  </script>
+</body>
+</html>
